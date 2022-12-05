@@ -35,7 +35,7 @@ func NewSTSForNodePool(
 	configChecksum string,
 	volumes []corev1.Volume,
 	volumeMounts []corev1.VolumeMount,
-	extraConfig map[string]string,
+	cmName string,
 ) *appsv1.StatefulSet {
 	//To make sure disksize is not passed as empty
 	var disksize string
@@ -119,6 +119,27 @@ func NewSTSForNodePool(
 		Name:      "data",
 		MountPath: "/usr/share/opensearch/data",
 	})
+
+	// Add config map with opensearch.yml
+	volumeName := fmt.Sprintf("%s-volume", cmName)
+	volumes = append(volumes, corev1.Volume{
+		Name: volumeName,
+		VolumeSource: corev1.VolumeSource{
+			ConfigMap: &corev1.ConfigMapVolumeSource{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: cmName,
+				},
+			},
+		},
+	})
+
+	volumeMounts = append(volumeMounts, corev1.VolumeMount{
+		Name:      volumeName,
+		MountPath: "/usr/share/opensearch/config/opensearch.yml",
+		SubPath:   "opensearch.yml",
+	})
+
+	// Issue stems from configuration.go
 
 	labels := map[string]string{
 		ClusterLabel:  cr.Name,
@@ -435,21 +456,6 @@ func NewSTSForNodePool(
 		},
 	}
 
-	// Append additional config to env vars
-	keys := make([]string, 0, len(extraConfig))
-	for key := range extraConfig {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	for _, k := range keys {
-		sts.Spec.Template.Spec.Containers[0].Env = append(sts.Spec.Template.Spec.Containers[0].Env, corev1.EnvVar{
-			Name:  k,
-			Value: extraConfig[k],
-		})
-	}
-	// Append additional env vars from cr.Spec.NodePool.env
-	sts.Spec.Template.Spec.Containers[0].Env = append(sts.Spec.Template.Spec.Containers[0].Env, node.Env...)
-
 	if cr.Spec.General.SetVMMaxMapCount {
 		initHelperImage := helpers.ResolveInitHelperImage(cr)
 
@@ -470,6 +476,35 @@ func NewSTSForNodePool(
 
 	return sts
 }
+
+func NewClusterConfigMapForCR(cr *opsterv1.OpenSearchCluster, name string, config map[string]string) *corev1.ConfigMap {
+
+	var sb strings.Builder
+
+	keys := make([]string, 0, len(config))
+	for key := range config {
+		keys = append(keys, key)
+	}
+
+	sort.Strings(keys)
+
+	for _, key := range config {
+		sb.WriteString(fmt.Sprintf("%s: %s\n", key, config[key]))
+	}
+
+	data := sb.String()
+
+	return &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: cr.Namespace,
+		},
+		Data: map[string]string{
+			helpers.ClusterConfigName: data,
+		},
+	}
+}
+
 func NewHeadlessServiceForNodePool(cr *opsterv1.OpenSearchCluster, nodePool *opsterv1.NodePool) *corev1.Service {
 	labels := map[string]string{
 		ClusterLabel:  cr.Name,

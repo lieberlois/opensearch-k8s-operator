@@ -99,24 +99,24 @@ func (r *ConfigurationReconciler) Reconcile() (ctrl.Result, error) {
 			return result.Result, result.Err
 		}
 
-		volume := corev1.Volume{
-			Name: "config",
-			VolumeSource: corev1.VolumeSource{
-				ConfigMap: &corev1.ConfigMapVolumeSource{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: cm.Name,
-					},
-				},
-			},
-		}
-		r.reconcilerContext.Volumes = append(r.reconcilerContext.Volumes, volume)
+		// volume := corev1.Volume{
+		// 	Name: "config",
+		// 	VolumeSource: corev1.VolumeSource{
+		// 		ConfigMap: &corev1.ConfigMapVolumeSource{
+		// 			LocalObjectReference: corev1.LocalObjectReference{
+		// 				Name: cm.Name,
+		// 			},
+		// 		},
+		// 	},
+		// }
+		// r.reconcilerContext.Volumes = append(r.reconcilerContext.Volumes, volume)
 
-		mount := corev1.VolumeMount{
-			Name:      "config",
-			MountPath: "/usr/share/opensearch/config/opensearch.yml",
-			SubPath:   "opensearch.yml",
-		}
-		r.reconcilerContext.VolumeMounts = append(r.reconcilerContext.VolumeMounts, mount)
+		// mount := corev1.VolumeMount{
+		// 	Name:      "config",
+		// 	MountPath: "/usr/share/opensearch/config/opensearch.yml",
+		// 	SubPath:   "opensearch.yml",
+		// }
+		// r.reconcilerContext.VolumeMounts = append(r.reconcilerContext.VolumeMounts, mount)
 	}
 
 	// Generate additional volumes

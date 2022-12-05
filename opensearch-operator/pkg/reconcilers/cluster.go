@@ -89,7 +89,19 @@ func (r *ClusterReconciler) Reconcile() (ctrl.Result, error) {
 		result.CombineErr(ctrl.SetControllerReference(r.instance, headlessService, r.Client.Scheme()))
 		result.Combine(r.ReconcileResource(headlessService, reconciler.StatePresent))
 
-		result.Combine(r.reconcileNodeStatefulSet(nodePool, username))
+		cmName := fmt.Sprintf("%s-config-%s", r.instance.Name, nodePool.Component)
+
+		baseConfig := r.reconcilerContext.OpenSearchConfig
+		withGeneral := helpers.MergeConfigs(baseConfig, r.instance.Spec.General.AdditionalConfig)
+		mergedConfigs := helpers.MergeConfigs(withGeneral, nodePool.AdditionalConfig)
+
+		cm := builders.NewClusterConfigMapForCR(
+			r.instance, cmName, mergedConfigs,
+		)
+		result.CombineErr(ctrl.SetControllerReference(r.instance, cm, r.Client.Scheme()))
+		result.Combine(r.ReconcileResource(cm, reconciler.StatePresent))
+
+		result.Combine(r.reconcileNodeStatefulSet(nodePool, username, cmName))
 	}
 
 	// if Version isn't set we set it now to check for upgrades later.
@@ -107,7 +119,7 @@ func (r *ClusterReconciler) Reconcile() (ctrl.Result, error) {
 	return result.Result, result.Err
 }
 
-func (r *ClusterReconciler) reconcileNodeStatefulSet(nodePool opsterv1.NodePool, username string) (*ctrl.Result, error) {
+func (r *ClusterReconciler) reconcileNodeStatefulSet(nodePool opsterv1.NodePool, username string, cmName string) (*ctrl.Result, error) {
 	found, nodePoolConfig := r.reconcilerContext.fetchNodePoolHash(nodePool.Component)
 
 	// If config hasn't been set up for the node pool requeue
@@ -117,8 +129,6 @@ func (r *ClusterReconciler) reconcileNodeStatefulSet(nodePool opsterv1.NodePool,
 		}, nil
 	}
 
-	extraConfig := helpers.MergeConfigs(r.instance.Spec.General.AdditionalConfig, nodePool.AdditionalConfig)
-
 	sts := builders.NewSTSForNodePool(
 		username,
 		r.instance,
@@ -126,7 +136,7 @@ func (r *ClusterReconciler) reconcileNodeStatefulSet(nodePool opsterv1.NodePool,
 		nodePoolConfig.ConfigHash,
 		r.reconcilerContext.Volumes,
 		r.reconcilerContext.VolumeMounts,
-		extraConfig,
+		cmName,
 	)
 	if err := ctrl.SetControllerReference(r.instance, sts, r.Client.Scheme()); err != nil {
 		return &ctrl.Result{}, err

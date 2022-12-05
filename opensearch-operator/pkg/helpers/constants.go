@@ -3,6 +3,8 @@ package helpers
 import "os"
 
 const (
+	ClusterConfigName         = "opensearch.yml"
+	ClusterChecksumName       = "checksum/opensearch.yml"
 	DashboardConfigName       = "opensearch_dashboards.yml"
 	DashboardChecksumName     = "checksum/dashboards.yml"
 	OsUserNameAnnotation      = "opensearchuser/name"
